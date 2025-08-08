@@ -365,8 +365,35 @@ document.getElementById('searchBtn').addEventListener('click', ()=>{
   if(code.trim()) searchStatusByCode(code);
 });
 
+/* ---------- Rating Submit (sends to Feedback tab) ---------- */
+const ratingForm = document.getElementById('ratingForm');
+const ratingMsg  = document.getElementById('ratingMsg');
+
+ratingForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  ratingMsg.textContent = "Submitting...";
+  try {
+    const fd = new FormData(ratingForm);
+    fd.set('action', 'feedback');
+    fd.set('issueIdRate', (fd.get('issueIdRate')||'').trim());
+
+    const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: fd });
+    const text = await res.text().catch(()=> '');
+    if (!res.ok || !/OK:\s*feedback/i.test(text)) {
+      throw new Error(text || `HTTP ${res.status} ${res.statusText}`);
+    }
+
+    ratingMsg.textContent = "Thanks! Feedback recorded.";
+    ratingForm.reset();
+  } catch (err) {
+    console.error(err);
+    ratingMsg.textContent = "Error: " + (err.message || err);
+  }
+});
+
 /* ---------- Init ---------- */
 // No auto list; user searches by Issue Code
 </script>
+
 </body>
 </html>
