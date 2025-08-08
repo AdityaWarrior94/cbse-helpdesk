@@ -91,18 +91,6 @@
     <div class="panel">
       <h2>Submit Your Issue</h2>
       <div id="issueFormStatus" class="help"></div>
-      // TOP of submit handler, before starting fetch:
-        const statusEl = document.getElementById('issueFormStatus');
-        statusEl.textContent = "Submitting...";
-
-          // ... after you get a successful response (right after console.log / timeline, etc.)
-       statusEl.textContent = "Submitted successfully ✅";
-        setTimeout(()=> statusEl.textContent = "", 3000);
-
-        // ... inside catch(err) block:
-       statusEl.textContent = "❌ Error submitting. Please try again.";
-
-
       <form id="issueForm" class="stack" enctype="multipart/form-data">
         <div class="row">
           <div>
