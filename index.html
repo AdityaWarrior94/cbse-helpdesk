@@ -35,18 +35,14 @@
   }
   button.secondary{background:#1f2937;color:var(--ink)}
   .help{font-size:12px;color:var(--muted)}
-  .split{display:grid;grid-template-columns:1fr;gap:16px}
-  .right{max-height:70vh;overflow:auto;border-radius:10px;border:1px solid var(--line)}
+  .right{max-height:70vh;overflow:auto;border-radius:10px;border:1px solid var(--line); padding:12px}
   .timeline{background:#0b1328;border:1px solid var(--line);border-radius:10px;padding:12px}
   .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
   .ok{background:#052e20;color:#86efac;border:1px solid #14532d}
   .warn{background:#3a2a07;color:#fde68a;border:1px solid #a16207}
   .danger{background:#3b0a0a;color:#fecaca;border:1px solid #7f1d1d}
-  table{border-collapse:collapse;width:100%}
-  th,td{border-bottom:1px solid var(--line);padding:10px;text-align:left;font-size:14px}
-  thead th{position:sticky;top:0;background:#0b1426}
   .status{font-weight:600}
-  .footer-note{font-size:12px;color:var(--muted);margin-top:6px}
+  .footer-note{font-size:12px;color:#9ca3af;margin-top:6px}
 </style>
 </head>
 <body>
@@ -66,8 +62,16 @@
             <input id="studentName" name="studentName" type="text" placeholder="e.g., aditya singh" required />
           </div>
           <div>
-            <label for="batchName">Batch Name (auto Proper Case)</label>
-            <input id="batchName" name="batchName" type="text" placeholder="e.g., NEET-Alpha" required />
+            <!-- UPDATED: Batch dropdown -->
+            <label for="batchName">Batch Name</label>
+            <select id="batchName" name="batchName" required>
+              <option value="" disabled selected>Select Batch</option>
+              <option>Impact</option>
+              <option>Succeed</option>
+              <option>Exceed</option>
+              <option>Achiever</option>
+              <option>Triumph</option>
+            </select>
           </div>
         </div>
 
@@ -144,21 +148,17 @@
       </form>
     </div>
 
-    <!-- RIGHT: RESPONSE SHEET + RATING -->
+    <!-- RIGHT: SEARCH STATUS + RATING -->
     <div class="panel">
       <h2>Issue Status (Public View)</h2>
+
+      <!-- UPDATED: Search UI (no auto list) -->
       <div class="right">
-        <table id="statusTable">
-          <thead>
-            <tr>
-              <th style="width:46%">Issue Code</th>
-              <th style="width:54%">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Filled from Google Sheet CSV (only IssueCode & Status shown) -->
-          </tbody>
-        </table>
+        <div class="row" style="grid-template-columns:1fr auto;">
+          <input id="searchCode" type="text" placeholder="Paste Issue Code (e.g., ISS-2025...)" />
+          <button id="searchBtn" type="button">Search Status</button>
+        </div>
+        <div id="searchResult" class="stack" style="margin-top:12px"></div>
       </div>
 
       <div class="stack" style="margin-top:16px">
@@ -197,22 +197,21 @@
 
 <script>
 /* ===================== CONFIG (replace these) ===================== */
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxmRksgNIik8cGDEFcpogwFw5LP7avQYCfrsBVfmZt5GjQDBWG_3ZxRMeLrWq1GaQ2Y/exec"; // <-- replace
-// Published CSV of your Response sheet (File > Share to web > CSV OR Apps Script return CSV)
-const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR5QUIu5Rgt60enJRY67cq-DgqaPGIG16GW8i3USMmp4CE9B7PsQ2L8mtzXO6-CqNXOncW7Cq0oJETw/pub?gid=0&single=true&output=csv"; // <-- replace
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxmRksgNIik8cGDEFcpogwFw5LP7avQYCfrsBVfmZt5GjQDBWG_3ZxRMeLrWq1GaQ2Y/exec"; // <-- your current URL
+// Published CSV of your Response sheet (File > Publish to web > Response > CSV)
+const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR5QUIu5Rgt60enJRY67cq-DgqaPGIG16GW8i3USMmp4CE9B7PsQ2L8mtzXO6-CqNXOncW7Cq0oJETw/pub?gid=0&single=true&output=csv"; // <-- your current CSV
 /* ================================================================= */
 
 /* ---------- Utils ---------- */
 function toProperCase(str){
   return (str||"")
     .toLowerCase()
-    .replace(/(^|[\\s\\-_/\\.])([a-z])/g, (_,p1,p2)=> p1 + p2.toUpperCase());
+    .replace(/(^|[\s\-_\/\.])([a-z])/g, (_,p1,p2)=> p1 + p2.toUpperCase());
 }
 function genIssueCode(){
   const d=new Date();
   const pad=n=> String(n).padStart(2,'0');
-  const code = `ISS-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${d.getHours()}${pad(d.getMinutes())}${pad(d.getSeconds())}-${Math.floor(Math.random()*900+100)}`;
-  return code;
+  return `ISS-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${d.getHours()}${pad(d.getMinutes())}${pad(d.getSeconds())}-${Math.floor(Math.random()*900+100)}`;
 }
 function readFileAsBase64(file){
   return new Promise((resolve,reject)=>{
@@ -222,13 +221,11 @@ function readFileAsBase64(file){
     fr.readAsDataURL(file);
   });
 }
+function escapeHtml(s){ return (s||"").replace(/[&<>"]/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
 
-/* ---------- Proper Case on blur ---------- */
+/* ---------- Proper Case only for name ---------- */
 const nameEl = document.getElementById('studentName');
-const batchEl = document.getElementById('batchName');
-[nameEl,batchEl].forEach(el=>{
-  el.addEventListener('blur',()=> el.value = toProperCase(el.value));
-});
+nameEl.addEventListener('blur',()=> nameEl.value = toProperCase(nameEl.value));
 
 /* ---------- Submit Issue ---------- */
 const issueForm = document.getElementById('issueForm');
@@ -238,18 +235,17 @@ const resetBtn = document.getElementById('resetBtn');
 issueForm.addEventListener('submit', async (e)=>{
   e.preventDefault();
   try{
-    // Prepare payload
     const issueCode = genIssueCode();
     const form = new FormData(issueForm);
+
     // normalize text to proper case again
     form.set('studentName', toProperCase(form.get('studentName')));
-    form.set('batchName', toProperCase(form.get('batchName')));
 
     const phone = (form.get('countryCode')||'') + (form.get('portalNumber')||'');
     form.set('fullPortal', phone);
     form.set('issueCode', issueCode);
-    form.set('action', 'create');   // tell Apps Script this is a create
-    form.set('sheetName', 'Response'); // your sheet tab name
+    form.set('action', 'create');
+    form.set('sheetName', 'Response');
 
     // Image to base64 (optional)
     const imgInput = document.getElementById('image');
@@ -257,30 +253,28 @@ issueForm.addEventListener('submit', async (e)=>{
       const file = imgInput.files[0];
       if(!file.type.startsWith('image/')) throw new Error('Only image files allowed');
       const b64 = await readFileAsBase64(file);
-      form.set('imageData', b64); // Apps Script: store to Drive & put link in sheet
+      form.set('imageData', b64);
       form.set('imageName', file.name);
     }
 
-    // POST to Apps Script Web App
     const res = await fetch(APPS_SCRIPT_URL, { method:'POST', body: form });
     if(!res.ok) throw new Error('Network error');
-    const txt = await res.text(); // your script can return JSON/text
+    const txt = await res.text();
     console.log('Server says:', txt);
 
-    // Show timeline (dummy for now)
+    // Timeline (dummy)
     const type = form.get('doubtType');
-    const t = buildTimeline(type, issueCode);
-    afterSubmit.innerHTML = t;
+    afterSubmit.innerHTML = buildTimeline(type, issueCode);
     afterSubmit.style.display = 'block';
 
-    // refresh right side table
-    fetchResponses();
+    // RIGHT: show status for this specific IssueCode
+    searchStatusByCode(issueCode);
 
-    // scroll to timeline
+    // Scroll
     afterSubmit.scrollIntoView({behavior:'smooth', block:'start'});
   }catch(err){
     console.error(err);
-    afterSubmit.innerHTML = `<span class="pill danger">Error:</span> ${err.message}`;
+    afterSubmit.innerHTML = `<span class="pill danger">Error:</span> ${escapeHtml(err.message)}`;
     afterSubmit.style.display = 'block';
   }
 });
@@ -292,7 +286,6 @@ resetBtn.addEventListener('click', ()=>{
 
 /* ---------- Dummy timeline logic (edit later) ---------- */
 function buildTimeline(type, code){
-  // You asked: "For now fill random condition in min" — demo SLAs below
   const rules = {
     "Tech": {sla:"30 min", steps:["Ticket created","Tech triage","Fix in progress","Resolved"]},
     "Academic": {sla:"4 hrs", steps:["Academic mentor assigned","Doubt review","Solution shared","Closed"]},
@@ -314,50 +307,10 @@ function buildTimeline(type, code){
   `;
 }
 
-/* ---------- Load Response Sheet (IssueCode + Status only) ---------- */
-async function fetchResponses(){
-  const tbody = document.querySelector('#statusTable tbody');
-  tbody.innerHTML = `<tr><td colspan="2">Loading...</td></tr>`;
-  try{
-    const res = await fetch(SHEET_CSV_URL, {cache:'no-store'});
-    if(!res.ok) throw new Error('Sheet not reachable');
-    const csv = await res.text();
-    const rows = parseCSV(csv);
-    // Expect headers: IssueCode, Status, ... (rest ignored)
-    const header = rows[0] || [];
-    const codeIdx = header.findIndex(h => /issue.?code/i.test(h));
-    const statusIdx = header.findIndex(h => /status/i.test(h));
-    const body = rows.slice(1);
-    tbody.innerHTML = "";
-    if(codeIdx === -1 || statusIdx === -1){
-      tbody.innerHTML = `<tr><td colspan="2">Couldn’t find IssueCode/Status columns in CSV.</td></tr>`;
-      return;
-    }
-    body.forEach(r=>{
-      if(!r.length) return;
-      const code = r[codeIdx]||"";
-      const status = r[statusIdx]||"";
-      const badge = status.toLowerCase().includes('resolved') ? 'ok'
-                  : status.toLowerCase().includes('progress') ? 'warn'
-                  : 'danger';
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${escapeHtml(code)}</td><td class="status"><span class="pill ${badge}">${escapeHtml(status)}</span></td>`;
-      tbody.appendChild(tr);
-    });
-    if(!tbody.children.length){
-      tbody.innerHTML = `<tr><td colspan="2">No issues yet.</td></tr>`;
-    }
-  }catch(err){
-    console.error(err);
-    const tbody = document.querySelector('#statusTable tbody');
-    tbody.innerHTML = `<tr><td colspan="2">Failed to load sheet. Replace SHEET_CSV_URL.</td></tr>`;
-  }
-}
+/* ---------- Search Status by IssueCode (from CSV) ---------- */
 function parseCSV(str){
-  // simple CSV parser for basic cases (no embedded newlines)
   const lines = str.trim().split(/\r?\n/);
   return lines.map(l=>{
-    // naive split, handles quoted commas minimally
     const out=[]; let cur=''; let q=false;
     for(let i=0;i<l.length;i++){
       const ch=l[i];
@@ -369,33 +322,51 @@ function parseCSV(str){
     return out.map(s=>s.trim());
   });
 }
-function escapeHtml(s){ return (s||"").replace(/[&<>"]/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
 
-/* ---------- Rating Submit ---------- */
-const ratingForm = document.getElementById('ratingForm');
-const ratingMsg = document.getElementById('ratingMsg');
-
-ratingForm.addEventListener('submit', async (e)=>{
-  e.preventDefault();
-  ratingMsg.textContent = "Submitting...";
+async function searchStatusByCode(issueCode){
+  const box = document.getElementById('searchResult');
+  box.innerHTML = 'Searching...';
   try{
-    const fd = new FormData(ratingForm);
-    fd.set('action','feedback');
-    fd.set('sheetName','Feedback'); // Feedback subsheet
-    const res = await fetch(APPS_SCRIPT_URL, {method:'POST', body: fd});
-    if(!res.ok) throw new Error("Network error");
-    const txt = await res.text();
-    console.log('Feedback server says:', txt);
-    ratingMsg.textContent = "Thanks! Feedback recorded.";
-    ratingForm.reset();
+    const res = await fetch(SHEET_CSV_URL + '&_=' + Date.now(), {cache:'no-store'});
+    if(!res.ok) throw new Error('Sheet not reachable');
+    const csv = await res.text();
+    const rows = parseCSV(csv);
+
+    const header = rows[0] || [];
+    const codeIdx = header.findIndex(h => /issue.?code/i.test(h));
+    const statusIdx = header.findIndex(h => /status/i.test(h));
+    if(codeIdx === -1 || statusIdx === -1) throw new Error('CSV missing IssueCode/Status columns');
+
+    const body = rows.slice(1);
+    const hit = body.find(r => (r[codeIdx]||'').trim() === issueCode.trim());
+
+    if(!hit){
+      box.innerHTML = `<div class="pill danger">Not found</div> Check the code and try again.`;
+      return;
+    }
+
+    const status = (hit[statusIdx]||'');
+    const s = status.toLowerCase();
+    const cls = s.includes('resolv') ? 'ok'
+             : (s.includes('progress') || s.includes('wip') || s.includes('check')) ? 'warn'
+             : 'danger';
+
+    box.innerHTML = `
+      <div><strong>${escapeHtml(issueCode)}</strong></div>
+      <div class="status"><span class="pill ${cls}">${escapeHtml(status)}</span></div>
+    `;
   }catch(err){
-    console.error(err);
-    ratingMsg.textContent = "Error: " + err.message;
+    box.innerHTML = `<div class="pill danger">Error</div> ${escapeHtml(err.message)}`;
   }
+}
+
+document.getElementById('searchBtn').addEventListener('click', ()=>{
+  const code = document.getElementById('searchCode').value;
+  if(code.trim()) searchStatusByCode(code);
 });
 
 /* ---------- Init ---------- */
-fetchResponses();
+// No auto list; user searches by Issue Code
 </script>
 </body>
 </html>
